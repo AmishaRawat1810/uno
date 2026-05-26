@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createSocket } from '../socket.js';
 
 const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-const defaultApiUrl = isLocalhost ? 'http://localhost:8000' : `${window.location.protocol}//${window.location.host}`;
+const defaultApiUrl = isLocalhost ? 'http://localhost:4000' : `${window.location.protocol}//${window.location.host}`;
 const API_URL = defaultApiUrl;
 
 export default function useSocket() {

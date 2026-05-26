@@ -5,6 +5,7 @@ export default function Hand({
   hand,
   topCard,
   currentColor,
+  drawStack,
   onPlayCard,
   disabled,
 }) {
@@ -14,7 +15,7 @@ export default function Hand({
         <div className="hand-empty">No cards in hand</div>
       ) : (
         hand.map((card) => {
-          const isValid = !disabled && isCardValid(card, topCard, currentColor);
+          const isValid = !disabled && isCardValid(card, topCard, currentColor, drawStack);
           return (
             <Card
               key={card.id}

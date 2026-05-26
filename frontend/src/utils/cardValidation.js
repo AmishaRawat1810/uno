@@ -1,5 +1,11 @@
-export function isCardValid(card, topCard, currentColor) {
+export function isCardValid(card, topCard, currentColor, drawStack = 0) {
   if (!card || !topCard) return false;
+
+  const isStackCard = (c) => c.type === 'draw2' || c.type === 'draw4';
+
+  if (drawStack > 0) {
+    return isStackCard(card);
+  }
 
   if (card.type === 'wild' || card.type === 'draw4') {
     return true;
