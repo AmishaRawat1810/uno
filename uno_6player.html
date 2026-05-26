@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4 Colors – 6 Players</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Exo+2:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b1f3a;
+    --table: #0e2d52;
+    --table-inner: #0a2244;
+    --border-glow: rgba(80,180,255,0.25);
+    --gold: #f5c518;
+    --red: #e02020;
+    --green: #19b84a;
+    --blue: #1890e8;
+    --yellow: #f5c518;
+    --purple: #8e44ad;
+    --card-dark: #111827;
+    --card-light: #fff;
+    --text-muted: rgba(180,215,255,0.55);
+    --text-bright: #cde8ff;
+    --radius-card: 10px;
+    --shadow-card: 0 4px 18px rgba(0,0,0,0.55);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Exo 2', sans-serif;
+    color: var(--text-bright);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Subtle background texture */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 50%, rgba(14,60,110,0.7) 0%, transparent 70%),
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,0.02) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255,255,255,0.02) 40px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .scene {
+    position: relative;
+    z-index: 1;
+    width: 980px;
+    height: 780px;
+    display: grid;
+    grid-template-areas:
+      "p5    top    p6"
+      "left  center right"
+      "p3    bot    p4";
+    grid-template-columns: 200px 1fr 200px;
+    grid-template-rows: 200px 1fr 200px;
+    gap: 8px;
+  }
+
+  /* ── TABLE FELT ── */
+  .table-felt {
+    grid-area: center;
+    background: radial-gradient(ellipse at center, #0f3460 0%, #091d38 100%);
+    border-radius: 50%;
+    box-shadow:
+      0 0 0 6px rgba(30,90,160,0.35),
+      0 0 60px rgba(20,70,140,0.5),
+      inset 0 0 40px rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  /* ── CENTER PLAY AREA ── */
+  .center-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    position: relative;
+  }
+
+  .special-mode-badge {
+    position: absolute;
+    left: -30px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: linear-gradient(135deg, #5b2def, #a855f7);
+    border-radius: 8px;
+    padding: 5px 8px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.3;
+    box-shadow: 0 0 14px rgba(168,85,247,0.6);
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── CARDS ── */
+  .card {
+    width: 72px;
+    height: 108px;
+    border-radius: var(--radius-card);
+    background: var(--card-dark);
+    border: 2.5px solid rgba(255,255,255,0.18);
+    box-shadow: var(--shadow-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .card:hover { transform: translateY(-4px) scale(1.04); box-shadow: 0 10px 28px rgba(0,0,0,0.7); }
+
+  .card-inner-diamond {
+    width: 52px; height: 52px;
+    transform: rotate(45deg);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .card-inner-diamond span {
+    transform: rotate(-45deg);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 20px;
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.7);
+  }
+
+  /* Color variants */
+  .card.red    .card-inner-diamond { background: var(--red); }
+  .card.green  .card-inner-diamond { background: var(--green); }
+  .card.blue   .card-inner-diamond { background: var(--blue); }
+  .card.yellow .card-inner-diamond { background: var(--yellow); }
+  .card.wild .card-inner-diamond {
+    background: conic-gradient(var(--red) 0% 25%, var(--yellow) 25% 50%, var(--green) 50% 75%, var(--blue) 75% 100%);
+  }
+  .card.wild span { color: #111; font-size: 14px; font-weight: 900; }
+
+  /* Corner labels */
+  .card-corner {
+    position: absolute;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.7);
+    line-height: 1;
+  }
+  .card-corner.tl { top: 5px; left: 6px; }
+  .card-corner.br { bottom: 5px; right: 6px; transform: rotate(180deg); }
+
+  /* Special icons on cards */
+  .card-icon { font-size: 22px; }
+
+  /* Back of card (for opponents) */
+  .card.back {
+    background: linear-gradient(135deg, #111827 0%, #1a2a44 100%);
+    cursor: default;
+  }
+  .card.back:hover { transform: none; }
+  .card.back .card-back-logo {
+    width: 48px; height: 48px;
+    transform: rotate(45deg);
+    background: conic-gradient(var(--red) 0% 25%, var(--yellow) 25% 50%, var(--green) 50% 75%, var(--blue) 75% 100%);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  }
+  .card.back .card-back-logo::after {
+    content: '4C';
+    transform: rotate(-45deg);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    font-weight: 900;
+    color: rgba(0,0,0,0.65);
+  }
+
+  /* Active card highlight */
+  .card.active-discard {
+    border-color: rgba(255,255,255,0.65);
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.25), 0 8px 28px rgba(0,0,0,0.6);
+  }
+
+  /* Deck (draw pile) */
+  .deck-pile { position: relative; cursor: pointer; }
+  .deck-pile .card { position: absolute; }
+  .deck-pile .card:nth-child(1) { transform: rotate(-2deg) translate(-3px, 2px); }
+  .deck-pile .card:nth-child(2) { transform: rotate(1deg) translate(1px, -1px); }
+  .deck-pile .card:nth-child(3) { position: relative; transform: none; }
+
+  /* ── PLAYER ZONES ── */
+  .player-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 8px;
+    position: relative;
+  }
+
+  /* TOP / BOT go horizontal */
+  .player-zone.top, .player-zone.bot {
+    grid-column: 2;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .player-zone.top { grid-area: top; justify-content: flex-start; padding-top: 4px; }
+  .player-zone.bot { grid-area: bot; justify-content: flex-end; padding-bottom: 4px; }
+
+  /* LEFT / RIGHT go vertical */
+  .player-zone.left  { grid-area: left; justify-content: center; }
+  .player-zone.right { grid-area: right; justify-content: center; }
+
+  /* Corners */
+  .player-zone.p5 { grid-area: p5; align-items: flex-start; justify-content: flex-start; }
+  .player-zone.p6 { grid-area: p6; align-items: flex-end; justify-content: flex-start; }
+  .player-zone.p3 { grid-area: p3; align-items: flex-start; justify-content: flex-end; }
+  .player-zone.p4 { grid-area: p4; align-items: flex-end; justify-content: flex-end; }
+
+  /* Hand rows */
+  .hand {
+    display: flex;
+    gap: -8px;
+  }
+  .hand.horizontal { flex-direction: row; }
+  .hand.vertical   { flex-direction: column; }
+
+  .hand.horizontal .card { margin-right: -22px; }
+  .hand.horizontal .card:last-child { margin-right: 0; }
+  .hand.vertical   .card { margin-bottom: -58px; width: 60px; height: 90px; }
+  .hand.vertical   .card:last-child { margin-bottom: 0; }
+  .hand.vertical   .card .card-inner-diamond { width: 42px; height: 42px; }
+  .hand.vertical   .card .card-inner-diamond span { font-size: 16px; }
+
+  /* Small cards for corner players */
+  .hand.corner .card {
+    width: 52px; height: 78px;
+    margin-right: -18px;
+  }
+  .hand.corner .card:last-child { margin-right: 0; }
+  .hand.corner .card .card-inner-diamond { width: 36px; height: 36px; }
+  .hand.corner .card .card-inner-diamond span { font-size: 13px; }
+
+  /* Flipped cards for top player */
+  .hand.flipped .card { transform: rotate(180deg); }
+  .hand.flipped .card:hover { transform: rotate(180deg) translateY(-4px) scale(1.04); }
+
+  /* ── PLAYER INFO LABEL ── */
+  .player-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(10,30,65,0.75);
+    border: 1px solid rgba(80,150,255,0.2);
+    border-radius: 20px;
+    padding: 4px 12px 4px 6px;
+    backdrop-filter: blur(4px);
+    white-space: nowrap;
+  }
+
+  .player-avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: 'Orbitron', sans-serif;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  .player-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-bright);
+  }
+
+  .player-score {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    color: var(--gold);
+    margin-left: 4px;
+  }
+
+  .player-score::before { content: '★ '; }
+
+  /* Active player glow */
+  .player-zone.active .player-label {
+    border-color: rgba(80,200,255,0.6);
+    box-shadow: 0 0 14px rgba(80,200,255,0.3);
+  }
+  .player-zone.active .player-avatar {
+    box-shadow: 0 0 10px currentColor;
+  }
+
+  /* UNO badge */
+  .uno-badge {
+    background: linear-gradient(135deg, var(--red), #ff6b6b);
+    color: #fff;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    font-weight: 900;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+    box-shadow: 0 0 10px rgba(224,32,32,0.6);
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  /* ── TOP BAR ── */
+  .top-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 48px;
+    background: rgba(8,18,38,0.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(80,150,255,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 10;
+  }
+
+  .quit-btn {
+    background: linear-gradient(135deg, #c0392b, #e74c3c);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 14px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    display: flex; align-items: center; gap: 6px;
+    transition: opacity 0.2s;
+  }
+  .quit-btn:hover { opacity: 0.85; }
+
+  .game-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    background: linear-gradient(90deg, var(--red), var(--yellow), var(--green), var(--blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .mute-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.2s;
+  }
+  .mute-btn:hover { background: rgba(255,255,255,0.15); }
+
+  /* ── DIRECTION INDICATOR ── */
+  .direction-indicator {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90px; height: 90px;
+    border-radius: 50%;
+    border: 2px dashed rgba(80,180,255,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    animation: spin 8s linear infinite;
+    color: rgba(80,180,255,0.4);
+    pointer-events: none;
+  }
+  @keyframes spin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+  /* ── SIDE INFO BUTTONS ── */
+  .side-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    cursor: pointer;
+    border: none;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .side-btn:hover { transform: scale(1.1); }
+  .btn-next { background: linear-gradient(135deg, #6c3483, #a855f7); box-shadow: 0 0 12px rgba(168,85,247,0.5); }
+  .btn-draw { background: linear-gradient(135deg, #1a5276, #2e86c1); box-shadow: 0 0 12px rgba(46,134,193,0.5); }
+  .btn-num  { background: linear-gradient(135deg, #b7950b, #f1c40f); box-shadow: 0 0 12px rgba(241,196,15,0.4); color: #111; font-family: 'Orbitron',sans-serif; font-weight: 900; font-size: 11px; }
+
+  /* ── COLOR PICKER ── */
+  .color-chooser {
+    position: absolute;
+    right: -56px; top: 50%;
+    transform: translateY(-50%);
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .color-dot {
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    transform: rotate(45deg);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    border: 2px solid rgba(255,255,255,0.2);
+  }
+  .color-dot:hover { transform: rotate(45deg) scale(1.15); }
+  .color-dot.yellow { background: var(--yellow); box-shadow: 0 0 8px rgba(245,197,24,0.5); }
+  .color-dot.red    { background: var(--red);    box-shadow: 0 0 8px rgba(224,32,32,0.5); }
+  .color-dot.green  { background: var(--green);  box-shadow: 0 0 8px rgba(25,184,74,0.4); }
+  .color-dot.blue   { background: var(--blue);   box-shadow: 0 0 8px rgba(24,144,232,0.5); }
+
+  /* Avatar colors per player */
+  .av1 { background: var(--blue); }
+  .av2 { background: var(--red); }
+  .av3 { background: var(--green); }
+  .av4 { background: var(--yellow); color: #111 !important; }
+  .av5 { background: var(--purple); }
+  .av6 { background: #e67e22; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="top-bar">
+  <button class="quit-btn">⬅ QUIT</button>
+  <div class="game-title">4 COLORS</div>
+  <div class="mute-btn">🔇</div>
+</div>
+
+<!-- MAIN SCENE -->
+<div class="scene">
+
+  <!-- ═══ PLAYER 5 (top-left corner) ═══ -->
+  <div class="player-zone p5">
+    <div class="player-label">
+      <div class="player-avatar av5">5</div>
+      <span class="player-name">Player 5</span>
+      <span class="player-score">12</span>
+    </div>
+    <div class="hand corner">
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+    </div>
+  </div>
+
+  <!-- ═══ PLAYER 2 (top center) ═══ -->
+  <div class="player-zone top">
+    <div class="player-label">
+      <div class="player-avatar av2">2</div>
+      <span class="player-name">Player 2</span>
+      <span class="player-score">0</span>
+    </div>
+    <div class="hand horizontal flipped">
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+    </div>
+  </div>
+
+  <!-- ═══ PLAYER 6 (top-right corner) ═══ -->
+  <div class="player-zone p6">
+    <div class="player-label">
+      <div class="player-avatar av6">6</div>
+      <span class="player-name">Player 6</span>
+      <span class="player-score">5</span>
+    </div>
+    <div class="hand corner">
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+    </div>
+  </div>
+
+  <!-- ═══ PLAYER 3 (left) ═══ -->
+  <div class="player-zone left">
+    <div class="player-label">
+      <div class="player-avatar av3">3</div>
+      <span class="player-name">Player 3</span>
+      <span class="player-score">8</span>
+    </div>
+    <div class="hand vertical">
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+    </div>
+  </div>
+
+  <!-- ═══ CENTER TABLE ═══ -->
+  <div class="table-felt">
+    <div class="direction-indicator">↻</div>
+    <div class="center-area">
+      <!-- Special Mode badge -->
+      <div class="special-mode-badge">SPECIAL<br>MODE</div>
+
+      <!-- Side buttons: card count + draw -->
+      <div style="display:flex;flex-direction:column;gap:8px;margin-right:8px;">
+        <div class="side-btn btn-num">1</div>
+        <div class="side-btn btn-draw">⬡</div>
+      </div>
+
+      <!-- Draw Pile -->
+      <div class="deck-pile" style="position:relative;width:72px;height:108px;">
+        <div class="card back" style="position:absolute;transform:rotate(-3deg) translate(-4px,3px);"><div class="card-back-logo"></div></div>
+        <div class="card back" style="position:absolute;transform:rotate(1deg) translate(1px,-1px);"><div class="card-back-logo"></div></div>
+        <div class="card back" style="position:absolute;"><div class="card-back-logo"></div></div>
+      </div>
+
+      <!-- Discard Pile -->
+      <div style="position:relative;">
+        <div class="card wild active-discard" style="transform:rotate(-4deg);position:absolute;top:0;left:0;">
+          <span class="card-corner tl">W</span>
+          <div class="card-inner-diamond">
+            <span>+4</span>
+          </div>
+          <span class="card-corner br">W</span>
+        </div>
+        <div class="card wild active-discard" style="position:relative;z-index:1;">
+          <span class="card-corner tl">W</span>
+          <div class="card-inner-diamond"></div>
+          <span class="card-corner br">W</span>
+        </div>
+      </div>
+
+      <!-- Color chooser -->
+      <div class="color-chooser">
+        <div class="color-dot yellow"></div>
+        <div class="color-dot red"></div>
+        <div class="color-dot green"></div>
+        <div class="color-dot blue"></div>
+      </div>
+
+      <!-- Next-turn button -->
+      <div class="side-btn btn-next" style="margin-left:8px;">▶</div>
+    </div>
+  </div>
+
+  <!-- ═══ PLAYER 4 (right) ═══ -->
+  <div class="player-zone right">
+    <div class="player-label">
+      <div class="player-avatar av4">4</div>
+      <span class="player-name">Player 4</span>
+      <span class="player-score">3</span>
+    </div>
+    <div class="hand vertical">
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card uno-badge" style="all:unset;display:flex;align-items:center;justify-content:center;width:60px;height:90px;">
+        <span class="uno-badge" style="font-size:14px;padding:4px 10px;border-radius:6px;">UNO!</span>
+      </div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+    </div>
+  </div>
+
+  <!-- ═══ PLAYER 5 bottom-left corner ═══ -->
+  <div class="player-zone p3">
+    <div class="hand corner">
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+    </div>
+    <div class="player-label">
+      <div class="player-avatar av3" style="background:#16a085;">7</div>
+      <span class="player-name">Player 7</span>
+      <span class="player-score">20</span>
+    </div>
+  </div>
+
+  <!-- ═══ PLAYER 1 (bottom center — local player) ═══ -->
+  <div class="player-zone bot active">
+    <div class="hand horizontal">
+      <!-- Green 4 -->
+      <div class="card green">
+        <span class="card-corner tl">4</span>
+        <div class="card-inner-diamond"><span>4</span></div>
+        <span class="card-corner br">4</span>
+      </div>
+      <!-- Red Reverse -->
+      <div class="card red">
+        <span class="card-corner tl">↺</span>
+        <div class="card-inner-diamond"><span class="card-icon">↺</span></div>
+        <span class="card-corner br">↺</span>
+      </div>
+      <!-- Green Skip -->
+      <div class="card green">
+        <span class="card-corner tl">⊘</span>
+        <div class="card-inner-diamond"><span class="card-icon">⊘</span></div>
+        <span class="card-corner br">⊘</span>
+      </div>
+      <!-- Red 5 -->
+      <div class="card red">
+        <span class="card-corner tl">5</span>
+        <div class="card-inner-diamond"><span>5</span></div>
+        <span class="card-corner br">5</span>
+      </div>
+      <!-- Wild +2 -->
+      <div class="card wild">
+        <span class="card-corner tl">+2</span>
+        <div class="card-inner-diamond"><span>+2</span></div>
+        <span class="card-corner br">+2</span>
+      </div>
+      <!-- Wild +4 -->
+      <div class="card wild">
+        <span class="card-corner tl">+4</span>
+        <div class="card-inner-diamond"><span>+4</span></div>
+        <span class="card-corner br">+4</span>
+      </div>
+      <!-- Wild +4 second -->
+      <div class="card wild">
+        <span class="card-corner tl">+4</span>
+        <div class="card-inner-diamond"><span>+4</span></div>
+        <span class="card-corner br">+4</span>
+      </div>
+      <!-- Blue 5 -->
+      <div class="card blue">
+        <span class="card-corner tl">5</span>
+        <div class="card-inner-diamond"><span>5</span></div>
+        <span class="card-corner br">5</span>
+      </div>
+    </div>
+    <div class="player-label">
+      <div class="player-avatar av1">1</div>
+      <span class="player-name">Player 1</span>
+      <span class="player-score">0</span>
+    </div>
+  </div>
+
+  <!-- ═══ PLAYER 4 bottom-right corner ═══ -->
+  <div class="player-zone p4">
+    <div class="hand corner">
+      <div class="card back"><div class="card-back-logo"></div></div>
+      <div class="card back"><div class="card-back-logo"></div></div>
+    </div>
+    <div class="player-label">
+      <div class="player-avatar av2" style="background:#c0392b;">8</div>
+      <span class="player-name">Player 8</span>
+      <span class="player-score">7</span>
+    </div>
+  </div>
+
+</div><!-- /scene -->
+
+</body>
+</html>

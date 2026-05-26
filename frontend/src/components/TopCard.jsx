@@ -1,4 +1,4 @@
-export default function TopCard({ topCard, currentColor }) {
+export default function TopCard({ topCard, currentColor, drawStack }) {
   return (
     <div className="top-card-panel">
       <div className="top-card-label">Discard pile</div>
@@ -15,6 +15,9 @@ export default function TopCard({ topCard, currentColor }) {
           </div>
         ) : (
           <div className="top-card-empty">No card yet</div>
+        )}
+        {drawStack > 0 && (
+          <div className="draw-stack-pill">Stack: {drawStack}</div>
         )}
       </div>
     </div>

@@ -12,7 +12,7 @@ export default function Card({ card, onClick, disabled }) {
   return (
     <button
       type="button"
-      className="card"
+      className={`card ${disabled ? "disabled" : ""}`}
       onClick={onClick}
       disabled={disabled}
       style={{ background }}
