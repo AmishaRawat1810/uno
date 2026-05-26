@@ -33,8 +33,17 @@ function getTopCard(room) {
   return room.discardPile[room.discardPile.length - 1] || null;
 }
 
-function isValidMove(card, topCard, currentColor) {
+function isStackCard(card) {
+  return card.type === CARD_TYPES.DRAW2 || card.type === CARD_TYPES.DRAW4;
+}
+
+function isValidMove(card, topCard, currentColor, drawStack = 0) {
   if (!card || !topCard) return false;
+
+  if (drawStack > 0) {
+    return isStackCard(card);
+  }
+
   if (card.type === CARD_TYPES.WILD || card.type === CARD_TYPES.DRAW4) {
     return true;
   }
@@ -133,7 +142,7 @@ function playCard(room, playerId, cardId, chosenColor) {
 
   const card = player.hand[cardIndex];
   const topCard = getTopCard(room);
-  if (!isValidMove(card, topCard, room.currentColor)) {
+  if (!isValidMove(card, topCard, room.currentColor, room.drawStack)) {
     return { success: false, message: 'Invalid move' };
   }
 

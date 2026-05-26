@@ -47,6 +47,7 @@ export default function Game({
           hand={roomState.myHand}
           topCard={roomState.topCard}
           currentColor={roomState.currentColor}
+          drawStack={roomState.drawStack}
           onPlayCard={onPlayCard}
           disabled={!isMyTurn}
         />

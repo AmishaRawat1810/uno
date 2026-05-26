@@ -35,6 +35,14 @@ describe('UNO game logic', () => {
     expect(isValidMove({ color: 'blue', type: 'skip' }, topCard, 'red')).toBe(false);
   });
 
+  test('isValidMove allows stack cards during active draw stack and rejects normal cards', () => {
+    const topCard = { color: 'red', type: 'draw4' };
+    expect(isValidMove({ color: 'green', type: 'draw2' }, topCard, 'blue', 6)).toBe(true);
+    expect(isValidMove({ color: 'yellow', type: 'draw4' }, topCard, 'blue', 6)).toBe(true);
+    expect(isValidMove({ color: 'red', type: 'skip' }, topCard, 'blue', 6)).toBe(false);
+    expect(isValidMove({ color: 'red', type: 'number', value: 5 }, topCard, 'blue', 6)).toBe(false);
+  });
+
   test('playCard rejects when play is invalid or not player turn', () => {
     const room = {
       status: 'playing',

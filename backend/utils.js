@@ -26,6 +26,7 @@ function serializeRoomState(room, playerId) {
     currentPlayer: room.players[room.currentPlayer]?.id || null,
     direction: room.direction,
     status: room.status,
+    drawStack: room.drawStack || 0,
     players: room.players.map((player) => ({
       id: player.id,
       name: player.name,
