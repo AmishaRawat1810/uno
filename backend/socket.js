@@ -1,6 +1,7 @@
 const { rooms } = require('./store');
 const { createRoomId, serializeRoomState, normalizePlayerName, isValidColor } = require('./utils');
 const { initializeGame, playCard, drawCard } = require('./gameLogic');
+const { shuffleDeck } = require('./deck');
 const { ROOM_STATUS } = require('./constants');
 
 function sendRoomUpdate(io, room) {
@@ -20,6 +21,14 @@ function findRoomBySocketId(socketId) {
   return null;
 }
 
+function recyclePlayerHand(room, player) {
+  if (!player || !Array.isArray(player.hand) || player.hand.length === 0) {
+    return;
+  }
+  room.deck = shuffleDeck([...room.deck, ...player.hand]);
+  player.hand = [];
+}
+
 function removePlayerFromRoom(room, socketId) {
   const index = room.players.findIndex((player) => player.id === socketId);
   if (index === -1) {
@@ -27,18 +36,22 @@ function removePlayerFromRoom(room, socketId) {
   }
 
   const [removedPlayer] = room.players.splice(index, 1);
+  recyclePlayerHand(room, removedPlayer);
+
   if (room.players.length === 0) {
     rooms.delete(room.id);
     return removedPlayer;
   }
 
   if (room.status === ROOM_STATUS.PLAYING) {
-    room.status = ROOM_STATUS.FINISHED;
-    room.winner = null;
-  }
-
-  if (room.currentPlayer >= room.players.length) {
-    room.currentPlayer = 0;
+    if (room.players.length === 1) {
+      room.status = ROOM_STATUS.FINISHED;
+      room.winner = room.players[0].id;
+    } else if (index < room.currentPlayer) {
+      room.currentPlayer -= 1;
+    } else if (room.currentPlayer >= room.players.length) {
+      room.currentPlayer = 0;
+    }
   }
 
   return removedPlayer;

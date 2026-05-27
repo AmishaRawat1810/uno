@@ -1,0 +1,1400 @@
+File: src/App.jsx
+import { useEffect, useState } from "react";
+import useSocket from "./hooks/useSocket.js";
+import Lobby from "./Lobby.jsx";
+import Game from "./Game.jsx";
+import ColorPicker from "./components/ColorPicker.jsx";
+
+const DEFAULT_PLAYER_NAME = "Player";
+
+export default function App() {
+  const [playerName, setPlayerName] = useState("");
+  const [roomInput, setRoomInput] = useState("");
+  const [selectedCard, setSelectedCard] = useState(null);
+  const [alertMessage, setAlertMessage] = useState("");
+
+  const {
+    socketId,
+    roomState,
+    notification,
+    createRoom,
+    joinRoom,
+    startGame,
+    playCard,
+    drawCard,
+    sayUno,
+    leaveRoom,
+  } = useSocket();
+
+  useEffect(() => {
+    if (!notification) {
+      return undefined;
+    }
+
+    setAlertMessage(notification);
+    const timeout = setTimeout(() => setAlertMessage(""), 3000);
+    return () => clearTimeout(timeout);
+  }, [notification]);
+
+  const currentPlayerName = playerName.trim() || DEFAULT_PLAYER_NAME;
+
+  const handleCreateRoom = () => {
+    if (!createRoom) return;
+
+    createRoom(currentPlayerName, (response) => {
+      if (!response.success && response.message) {
+        setAlertMessage(response.message);
+      }
+    });
+  };
+
+  const handleJoinRoom = () => {
+    if (!joinRoom) return;
+
+    joinRoom(roomInput.toUpperCase().trim(), currentPlayerName, (response) => {
+      if (!response.success && response.message) {
+        setAlertMessage(response.message);
+      }
+    });
+  };
+
+  const handleStartGame = () => {
+    if (!roomState || !startGame) return;
+
+    startGame(roomState.roomId, (response) => {
+      if (!response.success && response.message) {
+        setAlertMessage(response.message);
+      }
+    });
+  };
+
+  const handleCardPlay = (card) => {
+    if (!roomState || !playCard) return;
+    if (card.type === "wild" || card.type === "draw4") {
+      setSelectedCard(card);
+      return;
+    }
+
+    playCard(roomState.roomId, card.id, null, (response) => {
+      if (!response.success && response.message) {
+        setAlertMessage(response.message);
+      }
+    });
+  };
+
+  const handleWildPlay = (chosenColor) => {
+    if (!roomState || !selectedCard || !playCard) return;
+
+    playCard(roomState.roomId, selectedCard.id, chosenColor, (response) => {
+      if (!response.success && response.message) {
+        setAlertMessage(response.message);
+      }
+      setSelectedCard(null);
+    });
+  };
+
+  const handleDrawCard = () => {
+    if (!roomState || !drawCard) return;
+
+    drawCard(roomState.roomId, (response) => {
+      if (!response.success && response.message) {
+        setAlertMessage(response.message);
+      }
+    });
+  };
+
+  const handleSayUno = () => {
+    if (!roomState || !sayUno) return;
+
+    sayUno(roomState.roomId, () => {
+      setAlertMessage("UNO called!");
+    });
+  };
+
+  const handleLeaveRoom = () => {
+    if (!roomState || !leaveRoom) return;
+
+    leaveRoom(roomState.roomId, () => {
+      setSelectedCard(null);
+    });
+  };
+
+  return (
+    <div className="app-shell">
+      <header className="app-header">
+        <div>
+          <h1>UNO MVP</h1>
+          <p>Real-time multiplayer with React + Socket.IO.</p>
+        </div>
+        <div className="status-pill">
+          {socketId ? "Connected" : "Connecting..."}
+        </div>
+      </header>
+
+      {alertMessage && <div className="alert-banner">{alertMessage}</div>}
+
+      {!roomState || roomState.status === "waiting" ? (
+        <Lobby
+          playerName={playerName}
+          setPlayerName={setPlayerName}
+          roomInput={roomInput}
+          setRoomInput={setRoomInput}
+          onCreate={handleCreateRoom}
+          onJoin={handleJoinRoom}
+          roomState={roomState}
+          socketId={socketId}
+          onStart={handleStartGame}
+          onLeave={handleLeaveRoom}
+        />
+      ) : (
+        <Game
+          roomState={roomState}
+          socketId={socketId}
+          onPlayCard={handleCardPlay}
+          onDrawCard={handleDrawCard}
+          onSayUno={handleSayUno}
+          onLeaveRoom={handleLeaveRoom}
+        />
+      )}
+
+      {selectedCard && (
+        <ColorPicker
+          onChoose={(color) => handleWildPlay(color)}
+          onCancel={() => setSelectedCard(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+File: src/Game.jsx
+import Uno6Player from "./components/Uno6Player";
+
+export default function Game(props) {
+  // Forward handlers from App through to the visual component
+  return (
+    <Uno6Player
+      roomState={props.roomState}
+      socketId={props.socketId}
+      onPlayCard={props.onPlayCard}
+      onDrawCard={props.onDrawCard}
+      onSayUno={props.onSayUno}
+      onLeaveRoom={props.onLeaveRoom}
+    />
+  );
+}
+
+File: src/Lobby.jsx
+export default function Lobby({
+  playerName,
+  setPlayerName,
+  roomInput,
+  setRoomInput,
+  onCreate,
+  onJoin,
+  roomState,
+  socketId,
+  onStart,
+  onLeave,
+}) {
+  const isHost = roomState?.players?.[0]?.id === socketId;
+
+  return (
+    <main className="lobby-shell">
+      <section className="panel lobby-panel">
+        <div className="lobby-header">
+          <div className="game-title">4 COLORS</div>
+          <div className="top-actions">
+            <button className="quit-btn">⬅ QUIT</button>
+          </div>
+        </div>
+
+        <h2 className="panel-title">Join or Create</h2>
+
+        <div className="form-row">
+          <label htmlFor="playerName">Your name</label>
+          <input
+            id="playerName"
+            value={playerName}
+            onChange={(e) => setPlayerName(e.target.value)}
+            placeholder="Enter your name"
+            className="themed-input"
+          />
+        </div>
+
+        <div className="action-grid">
+          <button type="button" className="primary" onClick={onCreate}>
+            Create Room
+          </button>
+          <div className="join-group">
+            <input
+              value={roomInput}
+              onChange={(e) => setRoomInput(e.target.value)}
+              placeholder="Room code"
+              maxLength={4}
+              className="themed-input room-code"
+            />
+            <button type="button" className="primary" onClick={onJoin}>
+              Join Room
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {roomState && (
+        <section className="panel room-summary themed-panel">
+          <h3>Room {roomState.roomId}</h3>
+          <p className="room-status">Status: {roomState.status}</p>
+          <div className="player-list">
+            {roomState.players.map((player, idx) => (
+              <div key={player.id} className="player-card themed-player">
+                <div className={`avatar av${(idx % 6) + 1}`}>
+                  {player.name.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <strong>{player.name}</strong>
+                  <div className="card-count">{player.cardCount} cards</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="room-actions">
+            {isHost && (
+              <button type="button" className="primary" onClick={onStart}>
+                Start Game
+              </button>
+            )}
+            <button type="button" className="secondary" onClick={onLeave}>
+              Leave Room
+            </button>
+          </div>
+        </section>
+      )}
+    </main>
+  );
+}
+
+File: src/main.jsx
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.jsx";
+import "./styles.css";
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);
+
+File: src/socket.js
+import { io } from 'socket.io-client';
+
+export function createSocket(url) {
+  return io(url, {
+    transports: ['websocket'],
+  });
+}
+
+File: src/components/ActionBar.jsx
+export default function ActionBar({
+  onDrawCard,
+  onSayUno,
+  onLeaveRoom,
+  canSayUno,
+  disabled,
+}) {
+  return (
+    <div className="action-bar">
+      <button type="button" onClick={onDrawCard} disabled={disabled}>
+        Draw Card
+      </button>
+      <button
+        type="button"
+        onClick={onSayUno}
+        disabled={!canSayUno || disabled}
+      >
+        UNO!
+      </button>
+      <button type="button" className="secondary" onClick={onLeaveRoom}>
+        Leave
+      </button>
+    </div>
+  );
+}
+
+File: src/components/Card.jsx
+const colorMap = {
+  red: "#E53935",
+  yellow: "#FDD835",
+  green: "#43A047",
+  blue: "#1E88E5",
+  wild: "#424242",
+};
+
+export default function Card({ card, onClick, disabled }) {
+  const background = colorMap[card.color] || "#FFFFFF";
+
+  return (
+    <button
+      type="button"
+      className={`card ${disabled ? "disabled" : ""}`}
+      onClick={onClick}
+      disabled={disabled}
+      style={{ background }}
+    >
+      <div className="card-label">
+        {card.type === "number" ? card.value : card.type.toUpperCase()}
+      </div>
+      {card.color === "wild" ? <div className="card-subtitle">WILD</div> : null}
+    </button>
+  );
+}
+
+File: src/components/ColorPicker.jsx
+const colors = ["red", "blue", "green", "yellow"];
+
+export default function ColorPicker({ onChoose, onCancel }) {
+  return (
+    <div className="picker-overlay">
+      <div className="picker-panel">
+        <h3>Choose a color</h3>
+        <div className="picker-grid">
+          {colors.map((color) => (
+            <button
+              key={color}
+              type="button"
+              className={`picker-button ${color}`}
+              onClick={() => onChoose(color)}
+            >
+              {color}
+            </button>
+          ))}
+        </div>
+        <button type="button" className="picker-cancel" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+File: src/components/Hand.jsx
+import Card from "./Card.jsx";
+import { isCardValid } from "../utils/cardValidation.js";
+
+export default function Hand({
+  hand,
+  topCard,
+  currentColor,
+  drawStack,
+  onPlayCard,
+  disabled,
+}) {
+  const handClass = `hand-list self-hand ${hand.length > 10 ? "large-hand" : ""}`;
+
+  return (
+    <div className={handClass}>
+      {hand.length === 0 ? (
+        <div className="hand-empty">No cards in hand</div>
+      ) : (
+        hand.map((card) => {
+          const isValid =
+            !disabled && isCardValid(card, topCard, currentColor, drawStack);
+          return (
+            <Card
+              key={card.id}
+              card={card}
+              onClick={() => onPlayCard(card)}
+              disabled={disabled || !isValid}
+            />
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+File: src/components/Opponent.jsx
+export default function Opponent({ player, isActive }) {
+  const unoWarning = player.cardCount === 1;
+
+  return (
+    <div
+      className={`player-seat ${isActive ? "active-player" : ""} ${
+        unoWarning ? "uno-warning" : ""
+      }`}
+    >
+      <div className="status-ring" />
+      {unoWarning && <div className="uno-alert">UNO!</div>}
+
+      <div className="player-area">
+        <div className="player-info">
+          <span className="player-name">{player.name}</span>
+          <span className="card-count">{player.cardCount} cards</span>
+        </div>
+
+        <div className="hand horizontal">
+          {Array.from({ length: Math.min(player.cardCount, 5) }).map(
+            (_, index) => (
+              <div key={index} className="card back small" />
+            ),
+          )}
+          {player.cardCount > 5 && (
+            <div className="card back small more-count">
+              +{player.cardCount - 5}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+File: src/components/TopCard.jsx
+export default function TopCard({ topCard, currentColor, drawStack }) {
+  return (
+    <div className="top-card-panel">
+      <div className="top-card-label">Discard pile</div>
+      <div className="top-card-body">
+        <div className="current-color">Current: {currentColor || "None"}</div>
+        {topCard ? (
+          <div className="top-card-inner">
+            <div className="card-value">
+              {topCard.type === "number"
+                ? topCard.value
+                : topCard.type.toUpperCase()}
+            </div>
+            <div className="card-color">{topCard.color}</div>
+          </div>
+        ) : (
+          <div className="top-card-empty">No card yet</div>
+        )}
+        {drawStack > 0 && (
+          <div className="draw-stack-pill">Stack: {drawStack}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+File: src/components/Uno6Player.jsx
+import React from "react";
+import "../styles/uno6player.css";
+
+const POSITION_CLASSES = [
+  "p5",
+  "top",
+  "p6",
+  "left",
+  "right",
+  "p3",
+  "bot",
+  "p4",
+];
+
+function PlayerZone({ player, index, isSelf, isActive }) {
+  const pos = POSITION_CLASSES[index % POSITION_CLASSES.length];
+  const avatarClass = `player-avatar av${(index % 6) + 1}`;
+
+  return (
+    <div className={`player-zone ${pos} ${isActive ? "active" : ""}`}>
+      <div className="player-label">
+        <div className={avatarClass}>
+          {player.name.slice(0, 2).toUpperCase()}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <span className="player-name">{player.name}</span>
+          <span className="card-count">{player.cardCount ?? 0} cards</span>
+        </div>
+      </div>
+
+      <div
+        className={`hand ${pos === "top" || pos === "bot" ? "horizontal" : "vertical"}`}
+      >
+        {Array.from({ length: player.cardCount || 4 }).map((_, i) => (
+          <div key={i} className="card back">
+            <div className="card-back-logo" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function Uno6Player({
+  roomState = { players: [] },
+  socketId,
+  onPlayCard,
+  onDrawCard,
+  onSayUno,
+}) {
+  const players = roomState.players || [];
+  const myHand = roomState.myHand || [];
+  const opponents = players.filter((p) => p.id !== socketId);
+
+  return (
+    <div className="scene">
+      {opponents.map((p, i) => (
+        <PlayerZone
+          key={p.id || i}
+          player={p}
+          index={i}
+          isActive={p.id === roomState.currentPlayer}
+        />
+      ))}
+
+      <div className="table-felt">
+        <div className="direction-indicator">↻</div>
+        <div className="center-area">
+          <div className="special-mode-badge">
+            SPECIAL
+            <br />
+            MODE
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              marginRight: 8,
+            }}
+          >
+            <div className="side-btn btn-num">{players.length}</div>
+            <div
+              className="side-btn btn-draw"
+              onClick={() => onDrawCard && onDrawCard()}
+            >
+              ⬡
+            </div>
+          </div>
+
+          <div
+            className="deck-pile"
+            style={{ position: "relative", width: 72, height: 108 }}
+          >
+            <div
+              className="card back"
+              style={{
+                position: "absolute",
+                transform: "rotate(-3deg) translate(-4px,3px)",
+              }}
+            >
+              <div className="card-back-logo" />
+            </div>
+            <div
+              className="card back"
+              style={{
+                position: "absolute",
+                transform: "rotate(1deg) translate(1px,-1px)",
+              }}
+            >
+              <div className="card-back-logo" />
+            </div>
+            <div className="card back" style={{ position: "absolute" }}>
+              <div className="card-back-logo" />
+            </div>
+          </div>
+
+          <div style={{ position: "relative" }}>
+            <div
+              className="card wild active-discard"
+              style={{
+                transform: "rotate(-4deg)",
+                position: "absolute",
+                top: 0,
+                left: 0,
+              }}
+            >
+              <span className="card-corner tl">W</span>
+              <div className="card-inner-diamond">
+                <span>+4</span>
+              </div>
+              <span className="card-corner br">W</span>
+            </div>
+            <div
+              className="card wild active-discard"
+              style={{ position: "relative", zIndex: 1 }}
+            >
+              <span className="card-corner tl">W</span>
+              <div className="card-inner-diamond"></div>
+              <span className="card-corner br">W</span>
+            </div>
+          </div>
+
+          <div className="color-chooser">
+            <div
+              className="color-dot yellow"
+              onClick={() =>
+                onPlayCard &&
+                onPlayCard({ type: "wild", chosenColor: "yellow" })
+              }
+            />
+            <div
+              className="color-dot red"
+              onClick={() =>
+                onPlayCard && onPlayCard({ type: "wild", chosenColor: "red" })
+              }
+            />
+            <div
+              className="color-dot green"
+              onClick={() =>
+                onPlayCard && onPlayCard({ type: "wild", chosenColor: "green" })
+              }
+            />
+            <div
+              className="color-dot blue"
+              onClick={() =>
+                onPlayCard && onPlayCard({ type: "wild", chosenColor: "blue" })
+              }
+            />
+          </div>
+
+          <div className="side-btn btn-next" style={{ marginLeft: 8 }}>
+            ▶
+          </div>
+        </div>
+      </div>
+
+      <div
+        className={`player-zone bot ${roomState.currentPlayer === socketId ? "active" : ""}`}
+      >
+        <div className="hand horizontal self-hand">
+          {myHand.map((card) => (
+            <div
+              key={card.id || Math.random()}
+              className={`card ${card.type === "wild" || card.type === "draw4" ? "wild" : card.color || "red"}`}
+              onClick={() => onPlayCard && onPlayCard(card)}
+            >
+              <span className="card-corner tl">
+                {card.label || card.value || ""}
+              </span>
+              <div className="card-inner-diamond">
+                <span>{card.label || card.value || ""}</span>
+              </div>
+              <span className="card-corner br">
+                {card.label || card.value || ""}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="player-label">
+          <div className="player-avatar av1">
+            {(players.find((p) => p.id === socketId)?.name || "You")
+              .slice(0, 2)
+              .toUpperCase()}
+          </div>
+          <span className="player-name">
+            {players.find((p) => p.id === socketId)?.name || "You"}
+          </span>
+          <span className="card-count">
+            {players.find((p) => p.id === socketId)?.cardCount ?? myHand.length}{" "}
+            cards
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+File: src/hooks/useSocket.js
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createSocket } from '../socket.js';
+
+const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const defaultApiUrl = isLocalhost ? 'http://localhost:4000' : `${window.location.protocol}//${window.location.host}`;
+const API_URL = defaultApiUrl;
+
+export default function useSocket() {
+  const socketRef = useRef(null);
+  const [socketId, setSocketId] = useState(null);
+  const [connected, setConnected] = useState(false);
+  const [roomState, setRoomState] = useState(null);
+  const [notification, setNotification] = useState('');
+
+  useEffect(() => {
+    const socketInstance = createSocket(API_URL);
+    socketRef.current = socketInstance;
+
+    socketInstance.on('connect', () => {
+      setSocketId(socketInstance.id);
+      setConnected(true);
+    });
+
+    socketInstance.on('connect_error', (error) => {
+      setNotification(`Socket error: ${error.message}`);
+      setConnected(false);
+    });
+
+    socketInstance.on('disconnect', () => {
+      setConnected(false);
+    });
+
+    socketInstance.on('room_updated', (data) => {
+      setRoomState(data);
+    });
+
+    socketInstance.on('invalid_move', (data) => {
+      setNotification(data.message || 'Invalid move');
+    });
+
+    socketInstance.on('player_joined', (data) => {
+      setNotification(`${data.playerName} joined the room`);
+    });
+
+    socketInstance.on('player_left', () => {
+      setNotification('A player left the room');
+    });
+
+    socketInstance.on('player_won', () => {
+      setNotification('A player has won the game');
+    });
+
+    socketInstance.on('game_started', () => {
+      setNotification('Game started');
+    });
+
+    return () => {
+      socketInstance.disconnect();
+    };
+  }, []);
+
+  const emit = (event, payload, callback) => {
+    const socketInstance = socketRef.current;
+    if (!socketInstance) {
+      if (callback) callback({ success: false, message: 'Socket is not connected' });
+      return;
+    }
+    socketInstance.emit(event, payload, (result) => {
+      if (callback) callback(result);
+    });
+  };
+
+  const createRoom = (playerName, callback) => {
+    emit('create_room', { playerName }, callback);
+  };
+
+  const joinRoom = (roomId, playerName, callback) => {
+    emit('join_room', { roomId, playerName }, callback);
+  };
+
+  const startGame = (roomId, callback) => {
+    emit('start_game', { roomId }, callback);
+  };
+
+  const playCard = (roomId, cardId, chosenColor, callback) => {
+    emit('play_card', { roomId, cardId, chosenColor }, callback);
+  };
+
+  const drawCard = (roomId, callback) => {
+    emit('draw_card', { roomId }, callback);
+  };
+
+  const sayUno = (roomId, callback) => {
+    emit('say_uno', { roomId }, callback);
+  };
+
+  const leaveRoom = (roomId, callback) => {
+    emit('leave_room', { roomId }, callback);
+    setRoomState(null);
+  };
+
+  const status = useMemo(
+    () => ({ connected, socketId, roomState }),
+    [connected, socketId, roomState]
+  );
+
+  return {
+    ...status,
+    notification,
+    createRoom,
+    joinRoom,
+    startGame,
+    playCard,
+    drawCard,
+    sayUno,
+    leaveRoom,
+  };
+}
+
+File: src/utils/cardValidation.js
+export function isCardValid(card, topCard, currentColor, drawStack = 0) {
+  if (!card || !topCard) return false;
+
+  const isStackCard = (c) => c.type === 'draw2' || c.type === 'draw4';
+
+  if (drawStack > 0) {
+    return isStackCard(card);
+  }
+
+  if (card.type === 'wild' || card.type === 'draw4') {
+    return true;
+  }
+
+  if (card.color === currentColor) {
+    return true;
+  }
+
+  if (card.type === 'number' && topCard.type === 'number') {
+    return card.value === topCard.value;
+  }
+
+  return card.type === topCard.type;
+}
+
+File: src/styles/uno6player.css
+/* Extracted and scoped CSS for the 6-player UNO layout (from uno_6player.html) */
+:root {
+  --bg: #0b1f3a;
+  --table: #0e2d52;
+  --table-inner: #0a2244;
+  --border-glow: rgba(80,180,255,0.25);
+  --gold: #f5c518;
+  --red: #e02020;
+  --green: #19b84a;
+  --blue: #1890e8;
+  --yellow: #f5c518;
+  --purple: #8e44ad;
+  --card-dark: #111827;
+  --card-light: #fff;
+  --text-muted: rgba(180,215,255,0.55);
+  --text-bright: #cde8ff;
+  --radius-card: 10px;
+  --shadow-card: 0 4px 18px rgba(0,0,0,0.55);
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); }
+
+.scene {
+  position: relative;
+  z-index: 1;
+  width: 980px;
+  height: 780px;
+  display: grid;
+  grid-template-areas:
+    "p5    top    p6"
+    "left  center right"
+    "p3    bot    p4";
+  grid-template-columns: 200px 1fr 200px;
+  grid-template-rows: 200px 1fr 200px;
+  gap: 8px;
+}
+
+.table-felt {
+  grid-area: center;
+  background: radial-gradient(ellipse at center, #0f3460 0%, #091d38 100%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 6px rgba(30,90,160,0.35), 0 0 60px rgba(20,70,140,0.5), inset 0 0 40px rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center; position: relative;
+}
+
+.center-area { display:flex; align-items:center; justify-content:center; gap:16px; position:relative; }
+.special-mode-badge { position:absolute; left:-30px; top:50%; transform:translateY(-50%); background:linear-gradient(135deg,#5b2def,#a855f7); border-radius:8px; padding:5px 8px; font-family: 'Orbitron', sans-serif; font-size:8px; font-weight:700; text-align:center; color:#fff; text-transform:uppercase; }
+
+.card { width:72px; height:108px; border-radius:var(--radius-card); background:var(--card-dark); border:2.5px solid rgba(255,255,255,0.18); box-shadow:var(--shadow-card); display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; flex-shrink:0; cursor:pointer; transition:transform 0.15s, box-shadow 0.15s; }
+.card.back { background: linear-gradient(135deg,#111827 0%, #1a2a44 100%); cursor:default; }
+.card.back .card-back-logo { width:48px; height:48px; transform:rotate(45deg); background: conic-gradient(var(--red) 0% 25%, var(--yellow) 25% 50%, var(--green) 50% 75%, var(--blue) 75% 100%); border-radius:4px; display:flex; align-items:center; justify-content:center; }
+.card-inner-diamond { width:52px; height:52px; transform:rotate(45deg); border-radius:4px; display:flex; align-items:center; justify-content:center; }
+.card-inner-diamond span { transform:rotate(-45deg); font-family:'Orbitron',sans-serif; font-size:20px; font-weight:900; color:#fff; }
+.card.wild .card-inner-diamond { background: conic-gradient(var(--red) 0% 25%, var(--yellow) 25% 50%, var(--green) 50% 75%, var(--blue) 75% 100%); }
+.card.wild span { color:#111; font-size:14px; font-weight:900; }
+.card.red .card-inner-diamond { background:var(--red); }
+.card.green .card-inner-diamond { background:var(--green); }
+.card.blue .card-inner-diamond { background:var(--blue); }
+.card.yellow .card-inner-diamond { background:var(--yellow); }
+.card-corner { position:absolute; font-family:'Orbitron',sans-serif; font-size:10px; font-weight:700; color:rgba(255,255,255,0.7); }
+.card-corner.tl { top:5px; left:6px; }
+.card-corner.br { bottom:5px; right:6px; transform:rotate(180deg); }
+
+.player-zone { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:6px; padding:8px; position:relative; }
+.player-zone.top, .player-zone.bot { grid-column:2; flex-direction:column; justify-content:center; }
+.player-zone.top { grid-area: top; justify-content:flex-start; padding-top:4px; }
+.player-zone.bot { grid-area: bot; justify-content:flex-end; padding-bottom:4px; }
+.player-zone.left { grid-area:left; justify-content:center; }
+.player-zone.right { grid-area:right; justify-content:center; }
+.player-zone.p5 { grid-area:p5; align-items:flex-start; justify-content:flex-start; }
+.player-zone.p6 { grid-area:p6; align-items:flex-end; justify-content:flex-start; }
+.player-zone.p3 { grid-area:p3; align-items:flex-start; justify-content:flex-end; }
+.player-zone.p4 { grid-area:p4; align-items:flex-end; justify-content:flex-end; }
+
+.hand { display:flex; gap:-8px; }
+.hand.horizontal { flex-direction:row; }
+.hand.vertical { flex-direction:column; }
+.hand.horizontal .card { margin-right:-22px; }
+.hand.vertical .card { margin-bottom:-58px; width:60px; height:90px; }
+.hand.corner .card { width:52px; height:78px; margin-right:-18px; }
+.hand.flipped .card { transform: rotate(180deg); }
+
+.player-label { display:flex; align-items:center; gap:10px; background:rgba(10,30,65,0.75); border:1px solid rgba(80,150,255,0.2); border-radius:20px; padding:4px 12px 4px 6px; }
+.player-avatar { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:#fff; }
+.player-name { font-family:'Orbitron',sans-serif; font-size:9px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--text-bright); }
+.player-score { font-family:'Orbitron',sans-serif; font-size:9px; color:var(--gold); margin-left:4px; }
+.player-zone.active .player-label { border-color:rgba(80,200,255,0.6); box-shadow:0 0 14px rgba(80,200,255,0.3); }
+
+.uno-badge { background:linear-gradient(135deg,var(--red),#ff6b6b); color:#fff; font-family:'Orbitron',sans-serif; font-size:8px; font-weight:900; padding:2px 6px; border-radius:4px; }
+
+.top-bar { position:fixed; top:0; left:0; right:0; height:48px; background:rgba(8,18,38,0.92); display:flex; align-items:center; justify-content:space-between; padding:0 20px; z-index:10; }
+.quit-btn { background:linear-gradient(135deg,#c0392b,#e74c3c); border:none; border-radius:8px; color:#fff; padding:6px 14px; }
+.game-title { font-family:'Orbitron',sans-serif; font-size:14px; font-weight:900; letter-spacing:3px; }
+
+.direction-indicator { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:90px; height:90px; border-radius:50%; border:2px dashed rgba(80,180,255,0.3); display:flex; align-items:center; justify-content:center; font-size:28px; color:rgba(80,180,255,0.4); }
+
+.side-btn { width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; cursor:pointer; border:none; }
+.btn-next { background: linear-gradient(135deg, #6c3483, #a855f7); }
+.btn-draw { background: linear-gradient(135deg, #1a5276, #2e86c1); }
+.btn-num { background: linear-gradient(135deg, #b7950b, #f1c40f); color: #111; font-weight:900; }
+
+.color-chooser { position:absolute; right:-56px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:6px; }
+.color-dot { width:32px; height:32px; border-radius:6px; transform:rotate(45deg); border:2px solid rgba(255,255,255,0.2); }
+.color-dot.yellow { background:var(--yellow); }
+.color-dot.red { background:var(--red); }
+.color-dot.green { background:var(--green); }
+.color-dot.blue { background:var(--blue); }
+
+.av1 { background: var(--blue); }
+.av2 { background: var(--red); }
+.av3 { background: var(--green); }
+.av4 { background: var(--yellow); color:#111 !important; }
+.av5 { background: var(--purple); }
+.av6 { background: #e67e22; }
+:root {
+    --bg: #0b1f3a;
+    --table: #0e2d52;
+    --table-inner: #0a2244;
+    --border-glow: rgba(80,180,255,0.25);
+    --gold: #f5c518;
+    --red: #e02020;
+    --green: #19b84a;
+    --blue: #1890e8;
+    --yellow: #f5c518;
+    --purple: #8e44ad;
+    --card-dark: #111827;
+    --card-light: #fff;
+    --text-muted: rgba(180,215,255,0.55);
+    --text-bright: #cde8ff;
+    --radius-card: 10px;
+    --shadow-card: 0 4px 18px rgba(0,0,0,0.55);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Exo 2', sans-serif;
+    color: var(--text-bright);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .scene {
+    position: relative;
+    z-index: 1;
+    width: 980px;
+    height: 780px;
+    display: grid;
+    grid-template-areas:
+      "p5    top    p6"
+      "left  center right"
+      "p3    bot    p4";
+    grid-template-columns: 200px 1fr 200px;
+    grid-template-rows: 200px 1fr 200px;
+    gap: 8px;
+  }
+
+  .table-felt {
+    grid-area: center;
+    background: radial-gradient(ellipse at center, #0f3460 0%, #091d38 100%);
+    border-radius: 50%;
+    box-shadow:
+      0 0 0 6px rgba(30,90,160,0.35),
+      0 0 60px rgba(20,70,140,0.5),
+      inset 0 0 40px rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .center-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    position: relative;
+  }
+
+  .special-mode-badge {
+    position: absolute;
+    left: -30px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: linear-gradient(135deg, #5b2def, #a855f7);
+    border-radius: 8px;
+    padding: 5px 8px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.3;
+    box-shadow: 0 0 14px rgba(168,85,247,0.6);
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .card {
+    width: 72px;
+    height: 108px;
+    border-radius: var(--radius-card);
+    background: var(--card-dark);
+    border: 2.5px solid rgba(255,255,255,0.18);
+    box-shadow: var(--shadow-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .card:hover { transform: translateY(-4px) scale(1.04); box-shadow: 0 10px 28px rgba(0,0,0,0.7); }
+
+  .card-inner-diamond {
+    width: 52px; height: 52px;
+    transform: rotate(45deg);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .card-inner-diamond span {
+    transform: rotate(-45deg);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 20px;
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.7);
+  }
+
+  .card.red    .card-inner-diamond { background: var(--red); }
+  .card.green  .card-inner-diamond { background: var(--green); }
+  .card.blue   .card-inner-diamond { background: var(--blue); }
+  .card.yellow .card-inner-diamond { background: var(--yellow); }
+  .card.wild .card-inner-diamond {
+    background: conic-gradient(var(--red) 0% 25%, var(--yellow) 25% 50%, var(--green) 50% 75%, var(--blue) 75% 100%);
+  }
+  .card.wild span { color: #111; font-size: 14px; font-weight: 900; }
+
+  .card-corner {
+    position: absolute;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.7);
+    line-height: 1;
+  }
+  .card-corner.tl { top: 5px; left: 6px; }
+  .card-corner.br { bottom: 5px; right: 6px; transform: rotate(180deg); }
+
+  .card-icon { font-size: 22px; }
+
+  .card.back {
+    background: linear-gradient(135deg, #111827 0%, #1a2a44 100%);
+    cursor: default;
+  }
+  .card.back:hover { transform: none; }
+  .card.back .card-back-logo {
+    width: 48px; height: 48px;
+    transform: rotate(45deg);
+    background: conic-gradient(var(--red) 0% 25%, var(--yellow) 25% 50%, var(--green) 50% 75%, var(--blue) 75% 100%);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  }
+  .card.back .card-back-logo::after {
+    transform: rotate(-45deg);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    font-weight: 900;
+    color: rgba(0,0,0,0.65);
+  }
+
+  .card.active-discard {
+    border-color: rgba(255,255,255,0.65);
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.25), 0 8px 28px rgba(0,0,0,0.6);
+  }
+
+  .deck-pile { position: relative; cursor: pointer; }
+  .deck-pile .card { position: absolute; }
+  .deck-pile .card:nth-child(1) { transform: rotate(-2deg) translate(-3px, 2px); }
+  .deck-pile .card:nth-child(2) { transform: rotate(1deg) translate(1px, -1px); }
+  .deck-pile .card:nth-child(3) { position: relative; transform: none; }
+
+  .player-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 8px;
+    position: relative;
+  }
+
+  .player-zone.top, .player-zone.bot {
+    grid-column: 2;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .player-zone.top { grid-area: top; justify-content: flex-start; padding-top: 4px; }
+  .player-zone.bot { grid-area: bot; justify-content: flex-end; padding-bottom: 4px; }
+
+  .player-zone.left  { grid-area: left; justify-content: center; }
+  .player-zone.right { grid-area: right; justify-content: center; }
+
+  .player-zone.p5 { grid-area: p5; align-items: flex-start; justify-content: flex-start; }
+  .player-zone.p6 { grid-area: p6; align-items: flex-end; justify-content: flex-start; }
+  .player-zone.p3 { grid-area: p3; align-items: flex-start; justify-content: flex-end; }
+  .player-zone.p4 { grid-area: p4; align-items: flex-end; justify-content: flex-end; }
+
+  .hand {
+    display: flex;
+    gap: -8px;
+  }
+  .hand.horizontal { flex-direction: row; }
+  .hand.vertical   { flex-direction: column; }
+
+  .hand.horizontal .card { margin-right: -22px; }
+  .hand.horizontal .card:last-child { margin-right: 0; }
+  .hand.vertical   .card { margin-bottom: -58px; width: 60px; height: 90px; }
+  .hand.vertical   .card:last-child { margin-bottom: 0; }
+  .hand.vertical   .card .card-inner-diamond { width: 42px; height: 42px; }
+  .hand.vertical   .card .card-inner-diamond span { font-size: 16px; }
+
+  .hand.corner .card {
+    width: 52px; height: 78px;
+    margin-right: -18px;
+  }
+  .hand.corner .card:last-child { margin-right: 0; }
+  .hand.corner .card .card-inner-diamond { width: 36px; height: 36px; }
+  .hand.corner .card .card-inner-diamond span { font-size: 13px; }
+
+  .hand.flipped .card { transform: rotate(180deg); }
+  .hand.flipped .card:hover { transform: rotate(180deg) translateY(-4px) scale(1.04); }
+
+  /* Local player's hand should be fully visible and larger */
+  .hand.self-hand { justify-content: center; gap: 8px; }
+  .hand.self-hand .card { margin-right: 0; width: 96px; height: 144px; border-radius: 12px; }
+  .hand.self-hand .card .card-inner-diamond { width: 66px; height: 66px; }
+  .hand.self-hand .card .card-inner-diamond span { font-size: 26px; }
+  .hand.self-hand .card:hover { transform: translateY(-10px) scale(1.03); z-index: 10; }
+
+  .player-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(10,30,65,0.75);
+    border: 1px solid rgba(80,150,255,0.2);
+    border-radius: 20px;
+    padding: 4px 12px 4px 6px;
+    backdrop-filter: blur(4px);
+    white-space: nowrap;
+  }
+
+  .player-avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: 'Orbitron', sans-serif;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  .player-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-bright);
+  }
+
+  .player-score {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    color: var(--gold);
+    margin-left: 4px;
+  }
+
+  .player-score::before { content: '★ '; }
+
+  .player-zone.active .player-label {
+    border-color: rgba(80,200,255,0.6);
+    box-shadow: 0 0 14px rgba(80,200,255,0.3);
+  }
+  .player-zone.active .player-avatar {
+    box-shadow: 0 0 10px currentColor;
+  }
+
+  .uno-badge {
+    background: linear-gradient(135deg, var(--red), #ff6b6b);
+    color: #fff;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    font-weight: 900;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+    box-shadow: 0 0 10px rgba(224,32,32,0.6);
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  .top-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 48px;
+    background: rgba(8,18,38,0.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(80,150,255,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 10;
+  }
+
+  .quit-btn {
+    background: linear-gradient(135deg, #c0392b, #e74c3c);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 14px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    display: flex; align-items: center; gap: 6px;
+    transition: opacity 0.2s;
+  }
+  .quit-btn:hover { opacity: 0.85; }
+
+  .game-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    background: linear-gradient(90deg, var(--red), var(--yellow), var(--green), var(--blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .mute-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.2s;
+  }
+  .mute-btn:hover { background: rgba(255,255,255,0.15); }
+
+  .direction-indicator {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90px; height: 90px;
+    border-radius: 50%;
+    border: 2px dashed rgba(80,180,255,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    animation: spin 8s linear infinite;
+    color: rgba(80,180,255,0.4);
+    pointer-events: none;
+  }
+  @keyframes spin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+  .side-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    cursor: pointer;
+    border: none;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .side-btn:hover { transform: scale(1.1); }
+  .btn-next { background: linear-gradient(135deg, #6c3483, #a855f7); box-shadow: 0 0 12px rgba(168,85,247,0.5); }
+  .btn-draw { background: linear-gradient(135deg, #1a5276, #2e86c1); box-shadow: 0 0 12px rgba(46,134,193,0.5); }
+  .btn-num  { background: linear-gradient(135deg, #b7950b, #f1c40f); box-shadow: 0 0 12px rgba(241,196,15,0.4); color: #111; font-family: 'Orbitron',sans-serif; font-weight: 900; font-size: 11px; }
+
+  .color-chooser {
+    position: absolute;
+    right: -56px; top: 50%;
+    transform: translateY(-50%);
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .color-dot {
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    transform: rotate(45deg);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    border: 2px solid rgba(255,255,255,0.2);
+  }
+  .color-dot:hover { transform: rotate(45deg) scale(1.15); }
+  .color-dot.yellow { background: var(--yellow); box-shadow: 0 0 8px rgba(245,197,24,0.5); }
+  .color-dot.red    { background: var(--red);    box-shadow: 0 0 8px rgba(224,32,32,0.5); }
+  .color-dot.green  { background: var(--green);  box-shadow: 0 0 8px rgba(25,184,74,0.4); }
+  .color-dot.blue   { background: var(--blue);   box-shadow: 0 0 8px rgba(24,144,232,0.5); }
+
+  .av1 { background: var(--blue); }
+  .av2 { background: var(--red); }
+  .av3 { background: var(--green); }
+  .av4 { background: var(--yellow); color: #111 !important; }
+  .av5 { background: var(--purple); }
+  .av6 { background: #e67e22; }
+
+File: package.json
+{
+  "name": "uno-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "socket.io-client": "^4.7.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.0"
+  }
+}
+
+File: vite.config.js
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+});

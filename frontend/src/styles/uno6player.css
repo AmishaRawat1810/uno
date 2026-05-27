@@ -273,7 +273,6 @@ body { background: var(--bg); }
     box-shadow: 0 0 10px rgba(0,0,0,0.5);
   }
   .card.back .card-back-logo::after {
-    content: '4C';
     transform: rotate(-45deg);
     font-family: 'Orbitron', sans-serif;
     font-size: 11px;

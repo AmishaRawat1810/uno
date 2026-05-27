@@ -92,7 +92,7 @@ function initializeGame(room) {
 
 function applyCardEffect(card, room) {
   if (card.type === CARD_TYPES.SKIP) {
-    advanceTurn(room, 1);
+    advanceTurn(room, 2);
     return;
   }
 

@@ -83,4 +83,30 @@ describe('UNO game logic', () => {
     expect(result.success).toBe(true);
     expect(room.players[0].hand).toHaveLength(1);
   });
+
+  test('playCard skip advances two seats to skip the next player', () => {
+    const room = {
+      status: 'playing',
+      currentPlayer: 0,
+      direction: 1,
+      currentColor: 'red',
+      discardPile: [{ color: 'red', type: 'number', value: 1 }],
+      players: [
+        {
+          id: 'player1',
+          hand: [
+            { id: 'red-skip', color: 'red', type: 'skip' },
+            { id: 'red-5', color: 'red', type: 'number', value: 5 },
+          ],
+        },
+        { id: 'player2', hand: [] },
+        { id: 'player3', hand: [] },
+      ],
+      drawStack: 0,
+    };
+
+    const result = playCard(room, 'player1', 'red-skip', null);
+    expect(result.success).toBe(true);
+    expect(room.currentPlayer).toBe(2);
+  });
 });

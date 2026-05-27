@@ -17,7 +17,7 @@ export default function ActionBar({
       >
         UNO!
       </button>
-      <button type="button" className="secondary" onClick={onLeaveRoom}>
+      <button type="button" className="secondary danger" onClick={onLeaveRoom}>
         Leave
       </button>
     </div>
